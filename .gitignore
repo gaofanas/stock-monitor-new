@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+www/
+android/
+*.log
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Capacitor
+capacitor.config.json.backup
+
+# Backup folders
+vs_JiaZhi_wb_*/
+vs_jiazhi_wb-*/
+
+# Docs (optional - keep if you want)
+# *.md

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="theme-color" content="#1a1a2e">
+    <title>股票监控系统 - 专业金融数据仪表盘</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <!-- 头部区域 -->
+        <header class="header">
+            <h1>股票监控系统</h1>
+            <div class="header-actions">
+                <button id="refreshBtn" class="btn btn-primary" title="手动刷新所有股票数据">
+                    <span class="btn-icon">🔄</span> 刷新
+                </button>
+                <button id="addStockBtn" class="btn btn-success">
+                    <span class="btn-icon">➕</span> 添加股票
+                </button>
+            </div>
+        </header>
+
+        <!-- 概览面板 - 新增组件 -->
+        <div class="overview-panel" id="overviewPanel">
+            <div class="overview-card">
+                <div class="overview-label">持仓股票</div>
+                <div class="overview-value" id="overviewTotal">0</div>
+                <div class="overview-subtitle">只股票正在监控</div>
+            </div>
+            <div class="overview-card success">
+                <div class="overview-label">估值优势</div>
+                <div class="overview-value" id="overviewAdvantage">0</div>
+                <div class="overview-subtitle">只股票低于合理估值</div>
+            </div>
+            <div class="overview-card warning">
+                <div class="overview-label">买入机会</div>
+                <div class="overview-value" id="overviewOpportunity">0</div>
+                <div class="overview-subtitle">只股票达到买入折扣</div>
+            </div>
+            <div class="overview-card danger">
+                <div class="overview-label">高估警示</div>
+                <div class="overview-value" id="overviewOvervalued">0</div>
+                <div class="overview-subtitle">只股票高于合理估值</div>
+            </div>
+        </div>
+
+        <!-- 状态栏 -->
+        <div class="status-bar">
+            <div class="status-item">
+                <span id="lastUpdateTime">上次更新：--</span>
+            </div>
+            <div class="status-item">
+                <span>自动刷新：</span>
+                <span id="autoRefreshStatus" class="status-on">开启</span>
+            </div>
+            <div class="status-item">
+                <span>数据刷新间隔：</span>
+                <span style="font-weight: 600;">5 分钟</span>
+            </div>
+        </div>
+
+        <!-- 数据操作栏 -->
+        <div class="data-actions">
+            <button id="exportDataBtn" class="btn btn-secondary btn-sm">
+                📤 导出数据
+            </button>
+            <label class="btn btn-secondary btn-sm">
+                📥 导入数据
+                <input type="file" id="importDataInput" accept=".json" hidden>
+            </label>
+            <button id="toggleAutoRefreshBtn" class="btn btn-secondary btn-sm">
+                ⏸️ 暂停刷新
+            </button>
+            <button id="clearAllBtn" class="btn btn-danger btn-sm">
+                🗑️ 清空全部
+            </button>
+            <button id="settingsBtn" class="btn btn-secondary btn-sm">
+                ⚙️ 设置
+            </button>
+        </div>
+
+        <!-- 股票列表 - 表格视图 (PC) -->
+        <div class="stock-table-container">
+            <table class="stock-table" id="stockTable">
+                <thead>
+                    <tr>
+                        <th class="drag-handle" title="拖拽排序">排序</th>
+                        <th>股票信息</th>
+                        <th>所属行业</th>
+                        <th>财报更新</th>
+                        <th>业绩预期增速</th>
+                        <th>合理估值</th>
+                        <th>买入折扣</th>
+                        <th>当前股价</th>
+                        <th>价格百分位</th>
+                        <th>备注</th>
+                        <th>历史市盈率</th>
+                        <th>操作</th>
+                    </tr>
+                </thead>
+                <tbody id="stockTableBody">
+                    <!-- 股票数据行将通过 JS 动态插入 -->
+                </tbody>
+            </table>
+        </div>
+
+        <!-- 股票列表 - 卡片视图 (移动端) -->
+        <div class="stock-cards-container" id="stockCardsContainer">
+            <!-- 股票卡片将通过 JS 动态插入 -->
+        </div>
+
+        <!-- 空状态提示 -->
+        <div class="empty-state" id="emptyState">
+            <div class="empty-icon">📊</div>
+            <p>暂无股票数据</p>
+            <p class="empty-hint">点击"添加股票"开始监控您的股票</p>
+        </div>
+    </div>
+
+    <!-- 添加/编辑股票模态框 -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2 id="modalTitle">添加股票</h2>
+                <button class="modal-close" id="modalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="stockForm">
+                    <input type="hidden" id="editIndex" value="-1">
+
+                    <div class="form-group">
+                        <label for="stockCode">股票代码 <span class="required">*</span></label>
+                        <input type="text" id="stockCode" placeholder="例如：00700(港股) 或 300274(A 股)" required>
+                        <small class="form-hint">支持 A 股和港股，自动识别市场</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="stockName">股票名称 <span class="required">*</span></label>
+                        <div style="display: flex; gap: 10px;">
+                            <input type="text" id="stockName" placeholder="例如：腾讯控股" style="flex: 1;" required>
+                            <button type="button" id="searchStockBtn" class="btn btn-primary">🔍 搜索</button>
+                        </div>
+                        <small class="form-hint">输入名称后点击搜索，自动获取股票代码</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="industry">所属行业</label>
+                        <input type="text" id="industry" placeholder="例如：互联网科技、新能源、生物医药">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="reportDate">财报更新时间</label>
+                        <input type="text" id="reportDate" placeholder="例如：2024-Q1 或 2024-03-31">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="growthRate">业绩预期增速</label>
+                        <input type="text" id="growthRate" placeholder="例如：15% 或 20%+">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="fairValue">合理估值价格 <span class="required">*</span></label>
+                        <input type="number" id="fairValue" step="0.01" min="0" placeholder="例如：450.00" required>
+                        <small class="form-hint">基于您的分析，认为该股票的合理价值</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="buyDiscount">建议几折买入 <span class="required">*</span></label>
+                        <input type="number" id="buyDiscount" step="1" min="1" max="100" placeholder="例如：70(表示 7 折)" required>
+                        <small class="form-hint">输入百分比数值，如 70 表示 7 折 (70%)</small>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="note">备注</label>
+                        <textarea id="note" rows="3" placeholder="选填：投资逻辑、关注要点、风险提示等"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="cancelBtn" class="btn btn-secondary">取消</button>
+                <button type="button" id="saveStockBtn" class="btn btn-success">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 编辑单只股票模态框 (详细信息) -->
+    <div class="modal-overlay" id="editModalOverlay">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h2 id="editModalTitle">编辑股票</h2>
+                <button class="modal-close" id="editModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editStockForm">
+                    <input type="hidden" id="editStockIndex" value="-1">
+
+                    <div class="form-group">
+                        <label for="editIndustry">所属行业</label>
+                        <input type="text" id="editIndustry">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editReportDate">财报更新时间</label>
+                        <input type="text" id="editReportDate">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editGrowthRate">业绩预期增速</label>
+                        <input type="text" id="editGrowthRate">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editFairValue">合理估值价格</label>
+                        <input type="number" id="editFairValue" step="0.01" min="0">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editBuyDiscount">建议几折买入 (%)</label>
+                        <input type="number" id="editBuyDiscount" step="1" min="1" max="100">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="editNote">备注</label>
+                        <textarea id="editNote" rows="3"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="editCancelBtn" class="btn btn-secondary">取消</button>
+                <button type="button" id="updateStockBtn" class="btn btn-success">更新</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 搜索结果选择模态框 -->
+    <div class="modal-overlay" id="searchModalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h2>搜索结果</h2>
+                <button class="modal-close" id="searchModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="searchResultList" style="max-height: 300px; overflow-y: auto;">
+                    <!-- 搜索结果将动态插入 -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 查看备注模态框 -->
+    <div class="modal-overlay" id="noteModalOverlay">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h2 id="noteModalTitle">备注详情</h2>
+                <button class="modal-close" id="noteModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div id="noteModalContent" style="white-space: pre-wrap; word-break: break-word; line-height: 1.8;"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="noteCloseBtn" class="btn btn-secondary">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 提示消息 -->
+    <div class="toast" id="toast"></div>
+
+    <!-- 设置模态框 -->
+    <div class="modal-overlay" id="settingsModalOverlay">
+        <div class="modal modal-small">
+            <div class="modal-header">
+                <h2 id="settingsModalTitle">设置</h2>
+                <button class="modal-close" id="settingsModalClose">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="apiBaseUrl">API 服务器地址</label>
+                    <input type="text" id="apiBaseUrl" placeholder="http://192.168.1.100:5000/api" value="http://localhost:5000/api">
+                    <small class="form-hint">在手机上使用时，请输入电脑的 IP 地址（如：http://192.168.1.100:5000/api）</small>
+                </div>
+                <div class="form-group">
+                    <label>测试连接</label>
+                    <button type="button" id="testConnectionBtn" class="btn btn-secondary">测试连接</button>
+                    <span id="connectionStatus" style="margin-left: 10px;"></span>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" id="settingsSaveBtn" class="btn btn-success">保存</button>
+                <button type="button" id="settingsCloseBtn" class="btn btn-secondary">关闭</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 移动端底部导航栏 -->
+    <nav class="mobile-nav" id="mobileNav">
+        <a href="#" class="nav-item" onclick="handleRefresh(); return false;">
+            <span class="nav-icon">🔄</span>
+            <span class="nav-label">刷新</span>
+        </a>
+        <a href="#" class="nav-item" onclick="handleAddStock(); return false;">
+            <span class="nav-icon">➕</span>
+            <span class="nav-label">添加</span>
+        </a>
+        <a href="#" class="nav-item" onclick="handleExportData(); return false;">
+            <span class="nav-icon">📥</span>
+            <span class="nav-label">导出</span>
+        </a>
+        <a href="#" class="nav-item" onclick="document.getElementById('importDataInput').click(); return false;">
+            <span class="nav-icon">📤</span>
+            <span class="nav-label">导入</span>
+        </a>
+    </nav>
+
+    <script src="api.js?v=2026030406"></script>
+    <script src="app.js?v=2026030406"></script>
+</body>
+</html>
